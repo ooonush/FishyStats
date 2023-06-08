@@ -1,0 +1,12 @@
+{
+  "name": "com.alven.stats.fishnet",
+  "displayName": "FishyStats",
+  "description": "Stat System for FishNet",
+  "version": "0.0.1-pre.1",
+  "unity": "2020.3",
+  "author": "Alven (https://github.com/ooonush)",
+  "homepage": "https://github.com/ooonush/FishyStats",
+  "dependencies": {
+    "com.alven.stats": "0.0.1.pre-1"
+  }
+}
