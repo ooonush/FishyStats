@@ -26,7 +26,7 @@ namespace Stats.FishNet
             SyncTraitsData.Initialize(this);
             if (_traitsClass)
             {
-                SyncTraitsData.SyncWithTraitsClassLocally(_traitsClass);
+                InitializeLocally(_traitsClass);
             }
         }
 
@@ -37,17 +37,16 @@ namespace Stats.FishNet
             const string error = "Traits not initialized. Please set TraitsClass in the inspector or call Initialize()";
             if (!_traitsClass)
             {
-                Debug.LogError(error);
+                Debug.LogWarning(error);
             }
-            _initialized = true;
         }
 
         public void Initialize(TraitsClassBase traitsClass)
         {
-            if (!IsOffline)
-            {
-                throw new InvalidOperationException("You cannot initialize traits after network started");
-            }
+            // if (!IsOffline)
+            // {
+            //     throw new InvalidOperationException("You cannot initialize traits after network started");
+            // }
 
             if (_initialized)
             {
@@ -77,9 +76,9 @@ namespace Stats.FishNet
 
         private void InitializeLocally(TraitsClassBase traitsClass)
         {
+            SyncTraitsData.SyncWithTraitsClassLocally(traitsClass);
             _initialized = true;
             _traitsClass = traitsClass;
-            SyncTraitsData.SyncWithTraitsClassLocally(traitsClass);
         }
     }
 }
