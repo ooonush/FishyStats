@@ -5,7 +5,23 @@ _This asset is an **addon** to the [**Stats**](https://github.com/ooonush/Stats)
 Most games include a stat system, whether it's a simple health scale with a fixed value or a more complex RPG system with the ability to pump and many interconnected stats that are calculated over the course of the game.
 The purpose of the Stats assets is to make it easier for Unity developers to add, maintain, and extend this kind of functionality to their games.
 
-_This version is in preview stage and may be unstable, it is not recommended to use it in production. If you encounter any bugs, please make a bug report._
+_This version is in **preview** stage and may be unstable, it is **not recommended to use it in production**. If you encounter any bugs, please make a bug report. You can also suggest features that you would like to see in the Asset._
+
+## Installation
+
+Requires a version of **Unity 2021.3** or newer.
+
+Make sure you have the following packages installed:
+1. **[Stats](https://github.com/ooonush/Stats)**
+2. **[Fish-Net](https://github.com/FirstGearGames/FishNet)**
+
+To install **FishyStats** you can add `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/FishyStats` to **Package Manager**
+
+![image](https://github.com/ooonush/FishyStats/assets/72870405/5a36463a-354f-481a-b4a8-dd7912d82694)
+
+![image](https://github.com/ooonush/FishyStats/assets/72870405/c20b0884-953c-4d67-822d-77dff441202e)
+
+If you want to set a target version, **FishyStats** uses the *.*.* release tag so you can specify a version like #0.0.1-pre.1. For example `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/FishyStats#0.0.1-pre.1`.
 
 ## The main differences from Stats
 
