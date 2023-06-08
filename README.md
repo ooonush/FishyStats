@@ -9,7 +9,7 @@ _This version is in **preview** stage and may be unstable, it is **not recommend
 
 ## Installation
 
-Requires a version of **Unity 2021.3** or newer.
+Requires a version of **Unity 2022.3** or newer.
 
 Make sure you have the following packages installed:
 1. **[Stats](https://github.com/ooonush/Stats)**
