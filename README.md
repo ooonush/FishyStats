@@ -18,6 +18,9 @@ All stats configuration is exactly the same, but for stats to be synchronized ov
 Unlike **Traits**, in NetworkTraits you must specify **TraitsClassRegistry**. In this object you must specify all **Traits Classes** that can be used by this **NetworkTraits** component.
 
 You can also have a single **TraitsClassRegistry** object that contains _all_ the **Traits Classes** in your game.
+
+To create a **TraitsClassRegistry**, right click on the project window and go to **Create → Stats → TraitsClassRegistry**.
+
 For example, if the game has 3 traits classes that will be synchronized over the network, you must specify all 3 in the **TraitsClassRegistry**.
 
 ![image](https://github.com/ooonush/FishyStats/assets/72870405/1371385d-a059-4061-9432-bcf9e4f71637)
