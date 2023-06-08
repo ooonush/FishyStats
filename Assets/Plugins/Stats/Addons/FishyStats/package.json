@@ -3,7 +3,7 @@
   "displayName": "FishyStats",
   "description": "Stat System for FishNet",
   "version": "0.0.1-pre.1",
-  "unity": "2020.3",
+  "unity": "2022.3",
   "author": "Alven (https://github.com/ooonush)",
   "homepage": "https://github.com/ooonush/FishyStats",
   "dependencies": {
