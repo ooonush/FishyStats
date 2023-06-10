@@ -15,13 +15,13 @@ Make sure you have the following packages installed:
 1. **[Stats](https://github.com/ooonush/Stats)**
 2. **[Fish-Net](https://github.com/FirstGearGames/FishNet)**
 
-To install **FishyStats** you can add `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/FishyStats` to **Package Manager**
+To install **FishyStats** you can add `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/Stats/Addons/FishyStats` to **Package Manager**
 
 ![image](https://github.com/ooonush/FishyStats/assets/72870405/5a36463a-354f-481a-b4a8-dd7912d82694)
 
 ![image](https://github.com/ooonush/FishyStats/assets/72870405/c20b0884-953c-4d67-822d-77dff441202e)
 
-If you want to set a target version, **FishyStats** uses the *.*.* release tag so you can specify a version like #0.0.1-pre.1. For example `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/FishyStats#0.0.1-pre.1`.
+If you want to set a target version, **FishyStats** uses the *.*.* release tag so you can specify a version like #0.0.1-pre.1. For example `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/Stats/Addons/FishyStats#0.0.1-pre.1`.
 
 ## The main differences from Stats
 
