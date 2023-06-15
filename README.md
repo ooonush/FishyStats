@@ -21,7 +21,7 @@ To install **FishyStats** you can add `https://github.com/ooonush/FishyStats.git
 
 ![image](https://github.com/ooonush/FishyStats/assets/72870405/c20b0884-953c-4d67-822d-77dff441202e)
 
-If you want to set a target version, **FishyStats** uses the *.*.* release tag so you can specify a version like #0.0.1-pre.1. For example `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/Stats/Addons/FishyStats#0.0.1-pre.1`.
+If you want to set a target version, **FishyStats** uses the *.*.* release tag so you can specify a version like #0.0.1-pre.2. For example `https://github.com/ooonush/FishyStats.git?path=Assets/Plugins/Stats/Addons/FishyStats#0.0.1-pre.2`.
 
 ## The main differences from Stats
 
