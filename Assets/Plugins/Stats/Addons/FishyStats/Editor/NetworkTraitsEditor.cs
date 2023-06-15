@@ -1,5 +1,6 @@
-﻿using Stats.Editor;
+using Stats.Editor;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
 namespace Stats.FishNet.Editor
@@ -8,12 +9,15 @@ namespace Stats.FishNet.Editor
     [CanEditMultipleObjects]
     public class NetworkTraitsEditor : UnityEditor.Editor
     {
-        private TraitsVisualElement _traitsVisualElement;
-        
+        private TraitsElement _traitsVisualElement;
+
         public override VisualElement CreateInspectorGUI()
         {
             var root = new VisualElement();
-            _traitsVisualElement = new TraitsVisualElement(target as NetworkTraits, serializedObject);
+            SerializedProperty property = serializedObject.FindProperty("_traitsClassRegistry");
+            root.Add(new PropertyField(property));
+
+            _traitsVisualElement = new TraitsElement(target as NetworkTraits, serializedObject);
             root.Add(_traitsVisualElement);
             return root;
         }
