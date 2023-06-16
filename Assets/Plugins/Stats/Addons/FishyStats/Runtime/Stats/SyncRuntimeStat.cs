@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using FishNet.Object;
 
@@ -96,7 +96,10 @@ namespace Stats.FishNet
                 Value = next;
                 foreach (SyncRuntimeStat runtimeStat in _traits.RuntimeStats)
                 {
-                    runtimeStat.RecalculateValueLocally(asServer);
+                    if (runtimeStat.StatType != StatType)
+                    {
+                        runtimeStat.RecalculateValueLocally(asServer);
+                    }
                 }
 
                 OnStartRecalculating?.Invoke(asServer);
