@@ -66,6 +66,14 @@ namespace Stats.FishNet
             _traitsClass = traitsClass;
         }
 
+        private void Update()
+        {
+            if (IsServer)
+            {
+                RuntimeStatusEffects.Update();
+            }
+        }
+
         private void OnDestroy()
         {
             RuntimeStatusEffects.Clear();
