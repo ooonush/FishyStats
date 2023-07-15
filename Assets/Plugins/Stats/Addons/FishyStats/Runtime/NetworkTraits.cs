@@ -15,6 +15,7 @@ namespace Stats.FishNet
 
         public SyncRuntimeStats RuntimeStats => SyncTraitsData.RuntimeStats;
         public SyncRuntimeAttributes RuntimeAttributes => SyncTraitsData.RuntimeAttributes;
+        public RuntimeStatusEffects RuntimeStatusEffects { get; private set; }
 
         IRuntimeStats<IRuntimeStat> ITraits.RuntimeStats => RuntimeStats;
         IRuntimeAttributes<IRuntimeAttribute> ITraits.RuntimeAttributes => RuntimeAttributes;
@@ -23,6 +24,7 @@ namespace Stats.FishNet
 
         private void Awake()
         {
+            RuntimeStatusEffects = new RuntimeStatusEffects(this);
             SyncTraitsData.Initialize(this);
             if (_traitsClass)
             {
@@ -62,6 +64,19 @@ namespace Stats.FishNet
 
             _initialized = true;
             _traitsClass = traitsClass;
+        }
+
+        private void Update()
+        {
+            if (IsServer)
+            {
+                RuntimeStatusEffects.Update();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            RuntimeStatusEffects.Clear();
         }
 
         internal void InitializeLocally(string traitsClassId)
