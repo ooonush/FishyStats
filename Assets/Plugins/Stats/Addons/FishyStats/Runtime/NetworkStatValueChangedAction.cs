@@ -1,4 +1,5 @@
 ﻿namespace Stats.FishNet
 {
-    public delegate void NetworkStatValueChangedAction(StatType statType, float prev, float next, bool asServer);
+    public delegate void NetworkStatValueChangedAction<TNumber>(StatId<TNumber> statId, TNumber prev, TNumber next,
+        bool asServer) where TNumber : IStatNumber<TNumber>;
 }

@@ -1,108 +1,147 @@
 ﻿using System;
-using UnityEngine;
+using FishNet.Serializing;
+using FishNet.Utility.Extension;
 
 namespace Stats.FishNet
 {
-    public sealed class SyncRuntimeAttribute : IRuntimeAttribute
+    public sealed class SyncRuntimeAttribute<TNumber> : ISyncRuntimeAttribute, IRuntimeAttribute<TNumber> where TNumber : IStatNumber<TNumber>
     {
         private readonly NetworkTraits _traits;
-        public AttributeType AttributeType => _attributeItem.AttributeType;
-        private readonly AttributeItem _attributeItem;
-        public float MinValue => _attributeItem.MinValue;
-        private SyncTraitsData SyncTraitsData => _traits.SyncTraitsData;
+        public AttributeId<TNumber> AttributeId { get; }
+        string IRuntimeAttribute.AttributeId => AttributeId;
 
-        public float MaxValue => _attributeItem.MaxValueType != null ? _traits.RuntimeStats.Get(_attributeItem.MaxValueType).Value : 0f;
+        public TNumber MinValue { get; }
 
-        private float _value;
+        private SyncTraits SyncTraits => _traits.SyncTraits;
+
+        private TNumber _value;
+
         private bool _initialized;
 
-        public float Value
+        private readonly float _startPercent;
+
+        public SyncRuntimeStat<TNumber> MaxRuntimeStat { get; }
+
+        IRuntimeStat<TNumber> IRuntimeAttribute<TNumber>.MaxRuntimeStat => MaxRuntimeStat;
+
+
+        public TNumber Value
         {
             get
             {
                 if (!_initialized)
                 {
-                    InitializeStartValues();
+                    ((ISyncRuntimeAttribute)this).InitializeStartValues();
                 }
                 return _value;
             }
             set
             {
-                if (!SyncTraitsData.CanNetworkSetValuesInternal()) return;
-                bool asServerInvoke = !SyncTraitsData.IsNetworkInitialized || SyncTraitsData.NetworkBehaviour.IsServer;
-                SetValueLocally(value, asServerInvoke);
-
-                SyncTraitsData.AddOperation(SyncTraitsOperation.SetAttributeValue, AttributeType.Id, value,
-                    asServerInvoke);
+                if (!SyncTraits.CanNetworkSetValuesInternal()) return;
+                SetValueLocally(value);
+                
+                SyncTraits.Changes.WriteSetAttributeValueOperation(this, value);
             }
         }
 
-        public float Ratio => (Value - MinValue) / (MaxValue - MinValue);
+        public event NetworkAttributeValueChangedAction<TNumber> OnValueChanged;
 
-        public event NetworkAttributeValueChangedAction OnNetworkValueChanged;
-        public event AttributeValueChangedAction OnValueChanged;
+        private event AttributeValueChangedAction<TNumber> OnValueChangedLocally;
 
-        internal SyncRuntimeAttribute(NetworkTraits traits, AttributeItem attributeItem)
+        event AttributeValueChangedAction<TNumber> IRuntimeAttribute<TNumber>.OnValueChanged
         {
-            _traits = traits;
-            _attributeItem = attributeItem;
-            if (_attributeItem.MaxValueType)
-            {
-                _traits.RuntimeStats.Get(_attributeItem.MaxValueType).OnStartRecalculating += OnMaxValueChanged;
-            }
+            add => OnValueChangedLocally += value;
+            remove => OnValueChangedLocally -= value;
         }
 
-        internal void InitializeStartValues()
+        private event Action OnChanged;
+        event Action IRuntimeAttribute.OnValueChanged
+        {
+            add => OnChanged += value;
+            remove => OnChanged -= value;
+        }
+
+        internal SyncRuntimeAttribute(NetworkTraits traits, IAttribute<TNumber> attribute)
+        {
+            MinValue = attribute.MinValue;
+            AttributeId = attribute.AttributeId;
+            MaxRuntimeStat = traits.RuntimeStats.Get(attribute.MaxValueStat.StatId);
+            
+            _traits = traits;
+            _startPercent = attribute.StartPercent;
+            
+            MaxRuntimeStat.OnStartRecalculatingLocally += MaxStartRecalculatingLocally;
+        }
+
+        internal void WriteSetValueOperation(Writer writer, TNumber value)
+        {
+            writer.Write(value);
+        }
+
+        void ISyncRuntimeAttribute.InitializeStartValues()
         {
             _initialized = true;
-            _value = Mathf.Lerp(MinValue, MaxValue, _attributeItem.StartPercent);
+            _value = TMath.Lerp(MinValue, MaxRuntimeStat.Value, _startPercent);
         }
 
-        private void OnMaxValueChanged(bool asServer)
+        void ISyncRuntimeAttribute.ReadSetValueOperation(Reader reader, bool asServer)
         {
-            if (!asServer && _traits.IsHost) return;
-            SetValueLocally(Math.Clamp(Value, MinValue, MaxValue), asServer);
+            var value = reader.Read<TNumber>();
+            if (DoubleLogic(asServer)) return;
+            SetValueLocally(value);
         }
 
-        internal void SetValueLocally(float value, bool asServer)
+        void ISyncRuntimeAttribute.WriteFull(Writer writer)
         {
-            float prevValue = Value;
-            _value = Math.Clamp(value, MinValue, MaxValue);
+            writer.Write(Value);
+        }
 
-            if (Math.Abs(prevValue - Value) > float.Epsilon)
+        void ISyncRuntimeAttribute.ReadFull(Reader reader, bool asServer)
+        {
+            var value = reader.Read<TNumber>();
+            if (DoubleLogic(asServer)) return;
+            SetValueLocally(value);
+        }
+
+        private void MaxStartRecalculatingLocally()
+        {
+            SetValueLocally(TMath.Clamp(Value, MinValue, MaxRuntimeStat.Value));
+        }
+
+        private void SetValueLocally(TNumber value)
+        {
+            bool asServer = AsServerInvoke;
+            
+            TNumber prevValue = Value;
+            _value = TMath.Clamp(value, MinValue, MaxRuntimeStat.Value);
+            
+            if (prevValue.Equals(value)) return;
+            
+            foreach (IRuntimeStat runtimeStat in SyncTraits.RuntimeStats)
             {
-                foreach (SyncRuntimeStat runtimeStat in SyncTraitsData.RuntimeStats)
-                {
-                    runtimeStat.RecalculateValueLocally(asServer);
-                }
-
-                OnNetworkValueChanged?.Invoke(AttributeType, prevValue, Value, asServer);
-                if (asServer && _traits.IsHost)
-                {
-                    SyncTraitsData.AddClientHostChange(AttributeType, prevValue, Value);
-                }
-
-                bool asClientHost = !asServer && _traits.IsHost;
-                if (!asClientHost)
-                {
-                    OnValueChanged?.Invoke(AttributeType, Value - prevValue);
-                }
+                ((ISyncRuntimeStat)runtimeStat).RecalculateValueLocally();
+            }
+            
+            OnValueChanged?.Invoke(AttributeId, prevValue, Value, asServer);
+            
+            if (asServer && _traits.IsHost)
+            {
+                SyncTraits.AddClientHostChange(InvokeOnClientHostChange);
+            }
+            
+            OnChanged?.Invoke();
+            OnValueChangedLocally?.Invoke(AttributeId, prevValue, Value);
+            
+            return;
+            
+            void InvokeOnClientHostChange()
+            {
+                OnValueChanged?.Invoke(AttributeId, prevValue, Value, false);
             }
         }
 
-        internal void InvokeClientHostChange(float prev, float next)
-        {
-            OnNetworkValueChanged?.Invoke(AttributeType, prev, next, false);
-        }
+        private bool DoubleLogic(bool asServer) => SyncTraits.NetworkManager.DoubleLogic(asServer);
 
-        internal void CopyDataFrom(float value)
-        {
-            _value = value;
-        }
-
-        internal void InvokeClientHostChanged(float prev, float next)
-        {
-            OnNetworkValueChanged?.Invoke(AttributeType, prev, next, false);
-        }
+        private bool AsServerInvoke => !SyncTraits.IsNetworkInitialized || SyncTraits.NetworkBehaviour.IsServer;
     }
 }

@@ -4,103 +4,88 @@ using System.Collections.Generic;
 
 namespace Stats.FishNet
 {
-    public sealed class SyncRuntimeStats : IRuntimeStats<SyncRuntimeStat>
+    public sealed class SyncRuntimeStats : IRuntimeStats
     {
-        private readonly Dictionary<string, SyncRuntimeStat> _stats = new();
-        private readonly SyncTraitsData _syncTraitsData;
+        private readonly NetworkTraits _networkTraits;
+        private readonly Dictionary<string, ISyncRuntimeStat> _stats = new();
 
-        public int Count => _stats.Values.Count;
+        public int Count => _stats.Count;
 
-        public event NetworkStatValueChangedAction OnNetworkValueChanged;
-        private event StatValueChangedAction OnLocalValueChanged;
-
-        event StatValueChangedAction IRuntimeStats<SyncRuntimeStat>.OnValueChanged
+        internal SyncRuntimeStats(NetworkTraits networkTraits)
         {
-            add => OnLocalValueChanged += value;
-            remove => OnLocalValueChanged -= value;
+            _networkTraits = networkTraits;
         }
 
-        internal SyncRuntimeStats(SyncTraitsData syncTraitsData)
-        {
-            _syncTraitsData = syncTraitsData;
-        }
-
-        internal void SyncWithTraitsClass(IEnumerable<StatItem> statItems)
-        {
-            ClearStats();
-
-            foreach (StatItem statItem in statItems)
-            {
-                if (statItem == null || !statItem.StatType)
-                {
-                    throw new NullReferenceException("No StatType reference found in TraitsClass");
-                }
-
-                StatType statType = statItem.StatType;
-                if (_stats.ContainsKey(statType.Id))
-                {
-                    throw new Exception($"Stat with StatType \"{statType.name}\" already exists");
-                }
-
-                var syncRuntimeStat = new SyncRuntimeStat(_syncTraitsData.Traits, statItem);
-                syncRuntimeStat.OnNetworkValueChanged += OnNetworkValueChange;
-                syncRuntimeStat.OnValueChanged += OnValueChange;
-                _stats[statType.Id] = syncRuntimeStat;
-            }
-        }
-
-        private void OnNetworkValueChange(StatType statType, float prev, float next, bool asServer)
-        {
-            OnNetworkValueChanged?.Invoke(statType, prev, next, asServer);
-        }
-
-        private void ClearStats()
-        {
-            var stats = new List<SyncRuntimeStat>(_stats.Values);
-            foreach (SyncRuntimeStat runtimeStat in stats)
-            {
-                runtimeStat.OnNetworkValueChanged -= OnNetworkValueChange;
-                runtimeStat.OnValueChanged -= OnValueChange;
-                _stats.Remove(runtimeStat.StatType.Id);
-            }
-        }
-
-        private void OnValueChange(StatType statType, float change)
-        {
-            OnLocalValueChanged?.Invoke(statType, change);
-        }
-
-        internal SyncRuntimeStat Get(string statTypeId)
+        public SyncRuntimeStat<TNumber> Get<TNumber>(StatId<TNumber> statId) where TNumber : IStatNumber<TNumber>
         {
             try
             {
-                return _stats[statTypeId];
+                return (SyncRuntimeStat<TNumber>)_stats[statId];
             }
             catch (Exception exception)
             {
-                throw new ArgumentException("StatType Id not found in RuntimeStats", nameof(statTypeId), exception);
+                throw new ArgumentException("StatType not found in RuntimeStats", nameof(statId), exception);
             }
         }
 
-        public SyncRuntimeStat Get(StatType statType)
+        public bool Contains<TNumber>(StatId<TNumber> statId) where TNumber : IStatNumber<TNumber>
         {
-            if (statType == null) throw new ArgumentNullException(nameof(statType));
+            return _stats.ContainsKey(statId);
+        }
 
+        internal void SyncWithTraitsClass(ITraitsClass traitsClass)
+        {
+            Reset();
+            
+            foreach ((string statId, object stat) in traitsClass.StatItems)
+            {
+                foreach (Type statInterface in stat.GetType().GetInterfaces())
+                {
+                    if (statInterface.IsGenericType && statInterface.GetGenericTypeDefinition() == typeof(IStat<>))
+                    {
+                        Type genericStatNumberType = statInterface.GenericTypeArguments[0];
+                        Type runtimeStat = typeof(SyncRuntimeStat<>).MakeGenericType(genericStatNumberType);
+                        
+                        object genericRuntimeStat = Activator.CreateInstance(runtimeStat, _networkTraits, stat);
+                        
+                        if (_stats.ContainsKey(statId))
+                        {
+                            throw new Exception($"Stat with id \"{statId}\" already exists");
+                        }
+                        
+                        _stats[statId] = (ISyncRuntimeStat)genericRuntimeStat;
+                    }
+                }
+            }
+        }
+
+        internal ISyncRuntimeStat Get(string statId)
+        {
             try
             {
-                return Get(statType.Id);
+                return _stats[statId];
             }
             catch (Exception exception)
             {
-                throw new ArgumentException("StatType not found in RuntimeStats", nameof(statType), exception);
+                throw new ArgumentException("StatType not found in RuntimeStats", nameof(statId), exception);
             }
         }
 
-        public bool Contains(StatType statType) => _stats.ContainsKey(statType.Id);
+        internal void Reset()
+        {
+            _stats.Clear();
+        }
 
-        public void Reset() => ClearStats();
+        internal void InitializeStartValues()
+        {
+            foreach (ISyncRuntimeStat runtimeStat in _stats.Values)
+            {
+                runtimeStat.InitializeStartValues();
+            }
+        }
 
-        public IEnumerator<SyncRuntimeStat> GetEnumerator() => _stats.Values.GetEnumerator();
+        IRuntimeStat<TNumber> IRuntimeStats.Get<TNumber>(StatId<TNumber> statId) => Get(statId);
+        public IEnumerator<IRuntimeStat> GetEnumerator() => _stats.Values.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

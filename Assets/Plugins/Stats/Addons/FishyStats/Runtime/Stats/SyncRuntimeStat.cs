@@ -1,205 +1,379 @@
 using System;
 using System.Collections.Generic;
-using FishNet.Object;
+using FishNet.Serializing;
+using FishNet.Utility.Extension;
 
 namespace Stats.FishNet
 {
-    public sealed class SyncRuntimeStat : IRuntimeStat
+    public sealed class SyncRuntimeStat<TNumber> : ISyncRuntimeStat, IRuntimeStat<TNumber>
+        where TNumber : IStatNumber<TNumber>
     {
-        public StatType StatType { get; }
-        public IReadOnlyList<Modifier> PercentageModifiers => _modifiers.Percentages;
-        public IReadOnlyList<Modifier> ConstantModifiers => _modifiers.Constants;
+        private readonly StatFormula<TNumber> _formula;
+        private readonly NetworkTraits _traits;
+        private SyncTraits SyncTraits => _traits.SyncTraits;
+        private bool AsServerInvoke => !SyncTraits.IsNetworkInitialized || SyncTraits.NetworkBehaviour.IsServer;
 
-        public float Base
+        public IReadOnlyList<ConstantModifier<TNumber>> ConstantModifiers => _modifiers.Constants;
+        public IReadOnlyList<PercentageModifier> PercentageModifiers => _modifiers.Percentages;
+
+        public StatId<TNumber> StatId { get; }
+        string IRuntimeStat.StatId => StatId;
+
+        private readonly Modifiers<TNumber> _modifiers;
+
+        private TraitsSyncChanges Changes => SyncTraits.Changes;
+
+        public TNumber Base
         {
             get => _base;
             set
             {
-                if (!CanNetworkSetValues()) return;
-                SetBaseLocally(value, AsServerInvoke);
-
-                AddOperation(SyncTraitsOperation.SetStatBase, value, AsServerInvoke);
+                if (!SyncTraits.CanNetworkSetValuesInternal()) return;
+                SetBaseLocally(value);
+                
+                if (AsServerInvoke)
+                {
+                    Changes.WriteSetStatBaseOperation(this, value);
+                }
             }
         }
 
         private bool _initialized;
-        private float _value;
 
-        public float Value
+        private TNumber _value;
+
+        public TNumber Value
         {
             get
             {
                 if (!_initialized)
                 {
-                    InitializeStartValues();
+                    ((ISyncRuntimeStat)this).InitializeStartValues();
                 }
-
+                
                 return _value;
             }
             private set => _value = value;
         }
 
-        private float CalculateValue()
-        {
-            float value = _formula != null ? _formula.Calculate(this, _traits) : _base;
-            return _modifiers.Calculate(value);
-        }
-
-        public float ModifiersValue
+        public TNumber ModifiersValue
         {
             get
             {
-                float value = _formula != null ? _formula.Calculate(this, _traits) : _base;
-
-                return _modifiers.Calculate(value) - value;
+                TNumber value = _formula ? _formula.Calculate(this, _traits) : _base;
+                return _modifiers.Calculate(value).Subtract(value);
             }
         }
 
-        public event NetworkStatValueChangedAction OnNetworkValueChanged;
-        public event StatValueChangedAction OnValueChanged;
-        internal event Action<bool> OnStartRecalculating;
+        private TNumber _base;
 
-        private readonly StatFormula _formula;
-        private readonly NetworkTraits _traits;
-        private readonly Modifiers _modifiers = new();
-        private SyncTraitsData SyncTraitsData => _traits.SyncTraitsData;
+        public event NetworkStatValueChangedAction<TNumber> OnValueChanged;
+        private event StatValueChangedAction<TNumber> OnValueChangedLocally;
+        internal event Action OnStartRecalculatingLocally;
+        private event Action OnChanged;
 
-        private float _base;
+        event Action IRuntimeStat.OnChanged
+        {
+            add => OnChanged += value;
+            remove => OnChanged -= value;
+        }
 
-        private bool AsServerInvoke => !IsNetworkInitialized || NetworkBehaviour.IsServer;
-        private bool IsNetworkInitialized => SyncTraitsData.IsNetworkInitialized;
-        private NetworkBehaviour NetworkBehaviour => SyncTraitsData.NetworkBehaviour;
+        event StatValueChangedAction<TNumber> IRuntimeStat<TNumber>.OnValueChanged
+        {
+            add => OnValueChangedLocally += value;
+            remove => OnValueChangedLocally -= value;
+        }
 
-        public SyncRuntimeStat(NetworkTraits traits, StatItem statItem)
+        public SyncRuntimeStat(NetworkTraits traits, IStat<TNumber> stat)
         {
             _traits = traits;
-            StatType = statItem.StatType;
-            _base = statItem.Base;
-            _formula = statItem.Formula;
+            _modifiers = new Modifiers<TNumber>();
+            StatId = stat.StatId;
+            _base = stat.Base;
+            _formula = stat.Formula;
         }
 
-        internal void InitializeStartValues()
+        void ISyncRuntimeStat.InitializeStartValues()
         {
             _initialized = true;
-            _value = CalculateValue();
+            Value = CalculateValue();
         }
 
-        private bool CanNetworkSetValues() => SyncTraitsData.CanNetworkSetValuesInternal();
-
-        internal void RecalculateValueLocally(bool asServer)
+        void ISyncRuntimeStat.RecalculateValueLocally()
         {
-            float prev = Value;
-            float next = CalculateValue();
-
-            if (Math.Abs(prev - next) > float.Epsilon)
+            bool asServer = AsServerInvoke;
+            
+            TNumber prevValue = Value;
+            TNumber nextValue = CalculateValue();
+            
+            if (prevValue.Equals(nextValue)) return;
             {
-                Value = next;
-                foreach (SyncRuntimeStat runtimeStat in _traits.RuntimeStats)
+                Value = nextValue;
+                foreach (IRuntimeStat runtimeStat in _traits.RuntimeStats)
                 {
-                    if (runtimeStat.StatType != StatType)
+                    if (runtimeStat != this)
                     {
-                        runtimeStat.RecalculateValueLocally(asServer);
+                        ((ISyncRuntimeStat)runtimeStat).RecalculateValueLocally();
                     }
                 }
-
-                OnStartRecalculating?.Invoke(asServer);
-
-                OnNetworkValueChanged?.Invoke(StatType, prev, Value, asServer);
+                
+                OnStartRecalculatingLocally?.Invoke();
+                
+                OnValueChanged?.Invoke(StatId, prevValue, Value, asServer);
+                
                 if (asServer && _traits.IsHost)
                 {
-                    SyncTraitsData.AddClientHostChange(StatType, prev, Value);
+                    void InvokeOnClientHostChange()
+                    {
+                        OnValueChanged?.Invoke(StatId, prevValue, Value, false);
+                    }
+                    
+                    SyncTraits.AddClientHostChange(InvokeOnClientHostChange);
                 }
+                
+                OnChanged?.Invoke();
+                OnValueChangedLocally?.Invoke(StatId, prevValue, Value);
+            }
+        }
 
-                bool asClientHost = !asServer && _traits.IsHost;
-                if (!asClientHost)
+        private TNumber CalculateValue()
+        {
+            TNumber value = _formula ? _formula.Calculate(this, _traits) : _base;
+            return _modifiers.Calculate(value);
+        }
+
+        bool ISyncRuntimeStat.RecalculateWithoutNotify()
+        {
+            TNumber prevValue = Value;
+            TNumber nextValue = CalculateValue();
+            
+            if (prevValue.Equals(nextValue)) return false;
+            {
+                Value = nextValue;
+                foreach (IRuntimeStat runtimeStat in _traits.RuntimeStats)
                 {
-                    OnValueChanged?.Invoke(StatType, Value - prev);
+                    if (runtimeStat != this)
+                    {
+                        ((ISyncRuntimeStat)runtimeStat).RecalculateWithoutNotify();
+                    }
                 }
             }
-        }
-
-        public void AddModifier(ModifierType modifierType, float value)
-        {
-            if (!CanNetworkSetValues()) return;
-            AddModifierLocally(modifierType, value, AsServerInvoke);
-
-            switch (modifierType)
-            {
-                case ModifierType.Constant:
-                    AddOperation(SyncTraitsOperation.AddConstantModifier, value, AsServerInvoke);
-                    break;
-                case ModifierType.Percent:
-                    AddOperation(SyncTraitsOperation.AddPercentageModifier, value, AsServerInvoke);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(modifierType), modifierType, null);
-            }
-        }
-
-        public bool RemoveModifier(ModifierType modifierType, float value)
-        {
-            if (!CanNetworkSetValues()) return false;
-            bool isRemoved = RemoveModifierLocally(modifierType, value, AsServerInvoke);
-
-            if (!isRemoved) return false;
-
-            switch (modifierType)
-            {
-                case ModifierType.Constant:
-                    AddOperation(SyncTraitsOperation.RemoveConstantModifier, value, AsServerInvoke);
-                    break;
-                case ModifierType.Percent:
-                    AddOperation(SyncTraitsOperation.RemovePercentageModifier, value, AsServerInvoke);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(modifierType), modifierType, null);
-            }
-
+            
             return true;
         }
 
+        #region Modifiers
+
+        public void AddModifier(ConstantModifier<TNumber> modifier)
+        {
+            if (!SyncTraits.CanNetworkSetValuesInternal()) return;
+            AddModifierLocally(modifier);
+            
+            if (AsServerInvoke)
+            {
+                Changes.WriteAddModifierOperation(this, modifier);
+            }
+        }
+
+        public void AddModifier(PercentageModifier modifier)
+        {
+            if (!SyncTraits.CanNetworkSetValuesInternal()) return;
+            AddModifierLocally(modifier);
+            
+            if (AsServerInvoke)
+            {
+                Changes.WriteAddModifierOperation(this, modifier);
+            }
+        }
+
+        public bool RemoveModifier(ConstantModifier<TNumber> modifier)
+        {
+            if (!SyncTraits.CanNetworkSetValuesInternal()) return false;
+            bool isRemoved = RemoveModifierLocally(modifier);
+            
+            if (!isRemoved) return false;
+            
+            if (!AsServerInvoke) return true;
+            Changes.WriteRemoveModifierOperation(this, modifier);
+            return true;
+
+        }
+
+        public bool RemoveModifier(PercentageModifier modifier)
+        {
+            if (!SyncTraits.CanNetworkSetValuesInternal()) return false;
+            bool isRemoved = RemoveModifierLocally(modifier);
+            
+            if (!isRemoved) return false;
+            
+            if (!AsServerInvoke) return true;
+            Changes.WriteRemoveModifierOperation(this, modifier);
+            
+            return true;
+        }
+
+        #endregion
+
         #region Locally
 
-        internal void SetBaseLocally(float value, bool asServer)
+        private void SetBaseLocally(TNumber value)
         {
             _base = value;
-            RecalculateValueLocally(asServer);
+            ((ISyncRuntimeStat)this).RecalculateValueLocally();
         }
 
-        internal void AddModifierLocally(ModifierType modifierType, float value, bool asServer)
+        private void AddModifierLocally(ConstantModifier<TNumber> modifier)
         {
-            _modifiers.Add(modifierType, value);
-            RecalculateValueLocally(asServer);
+            _modifiers.Add(modifier);
+            ((ISyncRuntimeStat)this).RecalculateValueLocally();
         }
 
-        internal bool RemoveModifierLocally(ModifierType modifierType, float value, bool asServer)
+        private void AddModifierLocally(PercentageModifier modifier)
         {
-            bool success = _modifiers.Remove(modifierType, value);
+            _modifiers.Add(modifier);
+            ((ISyncRuntimeStat)this).RecalculateValueLocally();
+        }
 
+        private bool RemoveModifierLocally(ConstantModifier<TNumber> modifier)
+        {
+            bool success = _modifiers.Remove(modifier);
+            
             if (success)
             {
-                RecalculateValueLocally(asServer);
+                ((ISyncRuntimeStat)this).RecalculateValueLocally();
             }
+            
+            return success;
+        }
 
+        private bool RemoveModifierLocally(PercentageModifier modifier)
+        {
+            bool success = _modifiers.Remove(modifier);
+            
+            if (success)
+            {
+                ((ISyncRuntimeStat)this).RecalculateValueLocally();
+            }
+            
             return success;
         }
 
         #endregion
 
-        internal void InvokeClientHostChanged(float prev, float next)
+        #region Operations Write
+
+        internal void WriteSetStatBaseOperation(Writer writer, TNumber value) => writer.Write(value);
+
+        internal void WriteAddModifierOperation(Writer writer, TFloat value) => writer.Write(value);
+
+        internal void WriteRemoveModifierOperation(Writer writer, TFloat value) => writer.Write(value);
+
+        internal void WriteAddModifierOperation(Writer writer, TNumber value) => writer.Write(value);
+
+        internal void WriteRemoveModifierOperation(Writer writer, TNumber value) => writer.Write(value);
+
+        #endregion
+
+        #region Full Read Write
+
+        void ISyncRuntimeStat.WriteFull(Writer writer)
         {
-            OnNetworkValueChanged?.Invoke(StatType, prev, next, false);
+            writer.Write(_base);
+            writer.WriteUInt16((ushort)PercentageModifiers.Count);
+            
+            foreach (PercentageModifier modifier in PercentageModifiers)
+            {
+                writer.WriteBoolean(modifier.ModifierType == ModifierType.Positive);
+                writer.WriteSingle(modifier.Value);
+            }
+            
+            writer.WriteUInt16((ushort)ConstantModifiers.Count);
+            foreach (var modifier in ConstantModifiers)
+            {
+                writer.WriteBoolean(modifier.ModifierType == ModifierType.Positive);
+                writer.Write(modifier.Value);
+            }
         }
 
-        private void AddOperation(SyncTraitsOperation operation, float value, bool asServer)
+        void ISyncRuntimeStat.ReadFull(Reader reader, bool asServer)
         {
-            SyncTraitsData.AddOperation(operation, StatType.Id, value, asServer);
+            if (DoubleLogic(asServer))
+            {
+                reader.Read<TNumber>();
+                
+                for (ushort i = 0; i < reader.ReadUInt16(); i++)
+                {
+                    reader.ReadBoolean();
+                    reader.ReadSingle();
+                }
+                
+                for (ushort i = 0; i < reader.ReadUInt16(); i++)
+                {
+                    reader.ReadBoolean();
+                    reader.Read<TNumber>();
+                }
+                return;
+            }
+            
+            _base = reader.Read<TNumber>();
+            _modifiers.Clear();
+            
+            for (ushort i = 0; i < reader.ReadUInt16(); i++)
+            {
+                ModifierType modifierType = reader.ReadBoolean() ? ModifierType.Positive : ModifierType.Negative; 
+                float value = reader.ReadSingle();
+                _modifiers.Add(new PercentageModifier(value, modifierType));
+            }
+            
+            for (ushort i = 0; i < reader.ReadUInt16(); i++)
+            {
+                ModifierType modifierType = reader.ReadBoolean() ? ModifierType.Positive : ModifierType.Negative; 
+                var value = reader.Read<TNumber>();
+                _modifiers.Add(new ConstantModifier<TNumber>(value, modifierType));
+            }
         }
 
-        internal void CopyDataFrom(float baseValue, Modifiers modifiers)
+        #endregion
+
+        #region Operations Read
+
+        void ISyncRuntimeStat.ReadAddConstantModifier(Reader reader, ModifierType modifierType, bool asServer)
         {
-            _base = baseValue;
-            _modifiers.CopyDataFrom(modifiers);
+            var value = reader.Read<TNumber>();
+            if (DoubleLogic(asServer)) return;
+            AddModifierLocally(new ConstantModifier<TNumber>(value, modifierType));
         }
+
+        void ISyncRuntimeStat.ReadRemoveConstantModifier(Reader reader, ModifierType modifierType, bool asServer)
+        {
+            var value = reader.Read<TNumber>();
+            if (DoubleLogic(asServer)) return;
+            RemoveModifierLocally(new ConstantModifier<TNumber>(value, modifierType));
+        }
+
+        void ISyncRuntimeStat.ReadAddPercentageModifier(Reader reader, ModifierType modifierType, bool asServer)
+        {
+            var value = reader.Read<TFloat>();
+            if (DoubleLogic(asServer)) return;
+            AddModifierLocally(new PercentageModifier(value, modifierType));
+        }
+
+        void ISyncRuntimeStat.ReadRemovePercentageModifier(Reader reader, ModifierType modifierType, bool asServer)
+        {
+            var value = reader.Read<TFloat>();
+            if (DoubleLogic(asServer)) return;
+            RemoveModifierLocally(new PercentageModifier(value, modifierType));
+        }
+
+        void ISyncRuntimeStat.ReadSetStatBaseOperation(Reader reader, bool asServer)
+        {
+            var value = reader.Read<TNumber>();
+            if (DoubleLogic(asServer)) return;
+            SetBaseLocally(value);
+        }
+
+        #endregion
+
+        private bool DoubleLogic(bool asServer) => SyncTraits.NetworkManager.DoubleLogic(asServer);
     }
 }

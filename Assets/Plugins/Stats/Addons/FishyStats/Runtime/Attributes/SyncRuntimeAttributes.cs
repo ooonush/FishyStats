@@ -4,105 +4,90 @@ using System.Collections.Generic;
 
 namespace Stats.FishNet
 {
-    public sealed class SyncRuntimeAttributes : IRuntimeAttributes<SyncRuntimeAttribute>
+    public sealed class SyncRuntimeAttributes : IRuntimeAttributes
     {
-        private readonly SyncTraitsData _syncTraitsData;
-        private readonly Dictionary<string, SyncRuntimeAttribute> _attributes = new();
+        private readonly NetworkTraits _networkTraits;
+        private readonly Dictionary<string, ISyncRuntimeAttribute> _attributes = new();
 
-        public event NetworkAttributeValueChangedAction OnNetworkValueChanged;
-        private event AttributeValueChangedAction OnLocalValueChanged;
+        public int Count => _attributes.Count;
 
-        public int Count => _attributes.Values.Count;
-
-        event AttributeValueChangedAction IRuntimeAttributes<SyncRuntimeAttribute>.OnValueChanged
+        internal SyncRuntimeAttributes(NetworkTraits networkTraits)
         {
-            add => OnLocalValueChanged += value;
-            remove => OnLocalValueChanged -= value;
+            _networkTraits = networkTraits;
         }
 
-        internal SyncRuntimeAttributes(SyncTraitsData syncTraitsData)
+        internal void SyncWithTraitsClass(ITraitsClass traitsClass)
         {
-            _syncTraitsData = syncTraitsData;
-        }
+            Reset();
 
-        internal void SyncWithTraitsClass(TraitsClassBase traitsClass)
-        {
-            ClearAttributes();
-
-            foreach (AttributeItem attributeItem in traitsClass.AttributeItems)
+            foreach ((string attributeId, object attribute) in traitsClass.AttributeItems)
             {
-                if (attributeItem == null || !attributeItem.AttributeType)
+                foreach (Type attributeInterface in attribute.GetType().GetInterfaces())
                 {
-                    throw new NullReferenceException("No Attribute reference found");
+                    if (attributeInterface.IsGenericType && attributeInterface.GetGenericTypeDefinition() == typeof(IAttribute<>))
+                    {
+                        Type genericAttributeNumberType = attributeInterface.GenericTypeArguments[0];
+                        Type runtimeAttributeType = typeof(SyncRuntimeAttribute<>).MakeGenericType(genericAttributeNumberType);
+                        
+                        object genericRuntimeAttribute = Activator.CreateInstance(runtimeAttributeType, _networkTraits, attribute);
+                        
+                        if (_attributes.ContainsKey(attributeId))
+                        {
+                            throw new Exception($"Stat with id \"{attributeId}\" already exists");
+                        }
+                        
+                        _attributes.Add(attributeId, (ISyncRuntimeAttribute)genericRuntimeAttribute);
+                    }
                 }
-
-                AttributeType attributeType = attributeItem.AttributeType;
-
-                if (_attributes.ContainsKey(attributeType.Id))
-                {
-                    throw new Exception($"Attribute with AttributeType id = '{attributeType.Id}' already exists");
-                }
-
-                var runtimeAttribute = new SyncRuntimeAttribute(_syncTraitsData.Traits, attributeItem);
-                runtimeAttribute.OnNetworkValueChanged += OnNetworkValueChange;
-                runtimeAttribute.OnValueChanged += OnValueChange;
-                _attributes[attributeType.Id] = runtimeAttribute;
             }
         }
 
-        private void OnValueChange(AttributeType attributeType, float change)
+        internal void InitializeStartValues()
         {
-            OnLocalValueChanged?.Invoke(attributeType, change);
+            foreach (ISyncRuntimeAttribute runtimeAttribute in _attributes.Values)
+            {
+                runtimeAttribute.InitializeStartValues();
+            }
         }
 
-        private void OnNetworkValueChange(AttributeType attributeType, float prev, float next, bool asServer)
-        {
-            OnNetworkValueChanged?.Invoke(attributeType, prev, next, asServer);
-        }
-
-        internal SyncRuntimeAttribute Get(string attributeTypeId)
+        public SyncRuntimeAttribute<TNumber> Get<TNumber>(AttributeId<TNumber> attributeId) where TNumber : IStatNumber<TNumber>
         {
             try
             {
-                return _attributes[attributeTypeId];
+                return (SyncRuntimeAttribute<TNumber>)_attributes[attributeId];
             }
             catch (Exception exception)
             {
-                throw new ArgumentException("AttributeType Id not found in RuntimeAttributes", nameof(attributeTypeId), exception);
+                throw new ArgumentException("AttributeType Id not found in RuntimeAttributes", nameof(attributeId),
+                    exception);
             }
         }
 
-        public SyncRuntimeAttribute Get(AttributeType attributeType)
-        {
-            if (attributeType == null) throw new ArgumentNullException(nameof(attributeType));
+        IRuntimeAttribute<TNumber> IRuntimeAttributes.Get<TNumber>(AttributeId<TNumber> attributeId) => Get(attributeId);
 
+
+        internal ISyncRuntimeAttribute Get(string attributeId)
+        {
             try
             {
-                return Get(attributeType.Id);
+                return _attributes[attributeId];
             }
             catch (Exception exception)
             {
-                throw new ArgumentException("AttributeType not found in RuntimeAttributes", nameof(attributeType), exception);
+                throw new ArgumentException("AttributeType Id not found in RuntimeAttributes", nameof(attributeId),
+                    exception);
             }
         }
 
-        public bool Contains(AttributeType attributeType) => _attributes.ContainsKey(attributeType.Id);
+        public bool Contains<TNumber>(AttributeId<TNumber> attributeId)
+            where TNumber : IStatNumber<TNumber>
+        {
+            return _attributes.ContainsKey(attributeId);
+        }
 
-        internal void Reset() => ClearAttributes();
+        internal void Reset() => _attributes.Clear();
 
-        public IEnumerator<SyncRuntimeAttribute> GetEnumerator() => _attributes.Values.GetEnumerator();
-
+        public IEnumerator<IRuntimeAttribute> GetEnumerator() => _attributes.Values.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        private void ClearAttributes()
-        {
-            var syncRuntimeAttributes = new List<SyncRuntimeAttribute>(_attributes.Values);
-            foreach (SyncRuntimeAttribute runtimeAttribute in syncRuntimeAttributes)
-            {
-                runtimeAttribute.OnNetworkValueChanged -= OnNetworkValueChange;
-                runtimeAttribute.OnValueChanged -= OnValueChange;
-                _attributes.Remove(runtimeAttribute.AttributeType.Id);
-            }
-        }
     }
 }
