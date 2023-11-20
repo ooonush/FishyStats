@@ -84,7 +84,7 @@ namespace Stats.FishNet
             remove => OnValueChangedLocally -= value;
         }
 
-        public SyncRuntimeStat(NetworkTraits traits, IStat<TNumber> stat)
+        internal SyncRuntimeStat(NetworkTraits traits, IStat<TNumber> stat)
         {
             _traits = traits;
             _modifiers = new Modifiers<TNumber>();

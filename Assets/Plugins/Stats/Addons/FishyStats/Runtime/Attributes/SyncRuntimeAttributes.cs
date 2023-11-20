@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace Stats.FishNet
 {
@@ -29,8 +30,9 @@ namespace Stats.FishNet
                         Type genericAttributeNumberType = attributeInterface.GenericTypeArguments[0];
                         Type runtimeAttributeType = typeof(SyncRuntimeAttribute<>).MakeGenericType(genericAttributeNumberType);
                         
-                        object genericRuntimeAttribute = Activator.CreateInstance(runtimeAttributeType, _networkTraits, attribute);
-                        
+                        const BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Default;
+                        object[] args = { _networkTraits, attribute };
+                        object genericRuntimeAttribute = Activator.CreateInstance(runtimeAttributeType, bindingFlags, null, args, null);
                         if (_attributes.ContainsKey(attributeId))
                         {
                             throw new Exception($"Stat with id \"{attributeId}\" already exists");

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace Stats.FishNet
 {
@@ -46,7 +47,9 @@ namespace Stats.FishNet
                         Type genericStatNumberType = statInterface.GenericTypeArguments[0];
                         Type runtimeStat = typeof(SyncRuntimeStat<>).MakeGenericType(genericStatNumberType);
                         
-                        object genericRuntimeStat = Activator.CreateInstance(runtimeStat, _networkTraits, stat);
+                        const BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Default;
+                        object[] args = { _networkTraits, stat };
+                        object genericRuntimeStat =  Activator.CreateInstance(runtimeStat, bindingFlags, null, args, null);
                         
                         if (_stats.ContainsKey(statId))
                         {
