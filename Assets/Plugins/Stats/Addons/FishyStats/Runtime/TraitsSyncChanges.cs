@@ -23,9 +23,15 @@ namespace Stats.FishNet
         {
             if (!IsRegistered || !Dirty()) return;
             
-            _writer.WriteByte((byte)SyncTraitsOperation.SetAttributeValue);
-            _writer.WriteString(attribute.AttributeId);
+            WriteOperation(SyncTraitsOperation.SetAttributeValue, attribute.AttributeId);
             attribute.WriteSetValueOperation(_writer, value);
+        }
+
+        private void WriteOperation(SyncTraitsOperation operation, string id)
+        {
+            _writer.WriteByte((byte)operation);
+            _writer.WriteString(id);
+            Count++;
         }
 
         public void WriteSetStatBaseOperation<TNumber>(SyncRuntimeStat<TNumber> stat, TNumber value)
@@ -33,8 +39,7 @@ namespace Stats.FishNet
         {
             if (!IsRegistered || !Dirty()) return;
             
-            _writer.WriteByte((byte)SyncTraitsOperation.SetStatBase);
-            _writer.WriteString(stat.StatId);
+            WriteOperation(SyncTraitsOperation.SetStatBase, stat.StatId);
             stat.WriteSetStatBaseOperation(_writer, value);
         }
 
@@ -43,19 +48,11 @@ namespace Stats.FishNet
         {
             if (!IsRegistered || !Dirty()) return;
             
-            switch (modifier.ModifierType)
-            {
-                case ModifierType.Positive:
-                    _writer.WriteByte((byte)SyncTraitsOperation.AddPercentagePositiveModifier);
-                    break;
-                case ModifierType.Negative:
-                    _writer.WriteByte((byte)SyncTraitsOperation.AddPercentageNegativeModifier);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+            SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
+                ? SyncTraitsOperation.AddPercentagePositiveModifier
+                : SyncTraitsOperation.AddPercentageNegativeModifier;
             
-            _writer.WriteString(stat.StatId);
+            WriteOperation(operation, stat.StatId);
             stat.WriteAddModifierOperation(_writer, modifier.Value);
         }
 
@@ -64,19 +61,11 @@ namespace Stats.FishNet
         {
             if (!IsRegistered || !Dirty()) return;
             
-            switch (modifier.ModifierType)
-            {
-                case ModifierType.Positive:
-                    _writer.WriteByte((byte)SyncTraitsOperation.RemovePercentagePositiveModifier);
-                    break;
-                case ModifierType.Negative:
-                    _writer.WriteByte((byte)SyncTraitsOperation.RemovePercentageNegativeModifier);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            _writer.WriteString(stat.StatId);
+            SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
+                ? SyncTraitsOperation.RemovePercentagePositiveModifier
+                : SyncTraitsOperation.RemovePercentageNegativeModifier;
+            
+            WriteOperation(operation, stat.StatId);
             stat.WriteRemoveModifierOperation(_writer, modifier.Value);
         }
 
@@ -86,19 +75,11 @@ namespace Stats.FishNet
         {
             if (!IsRegistered || !Dirty()) return;
             
-            switch (modifier.ModifierType)
-            {
-                case ModifierType.Positive:
-                    _writer.WriteByte((byte)SyncTraitsOperation.AddConstantPositiveModifier);
-                    break;
-                case ModifierType.Negative:
-                    _writer.WriteByte((byte)SyncTraitsOperation.AddConstantNegativeModifier);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+            SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
+                ? SyncTraitsOperation.AddConstantPositiveModifier
+                : SyncTraitsOperation.AddConstantNegativeModifier;
             
-            _writer.WriteString(stat.StatId);
+            WriteOperation(operation, stat.StatId);
             stat.WriteAddModifierOperation(_writer, modifier.Value);
         }
 
@@ -108,34 +89,25 @@ namespace Stats.FishNet
         {
             if (!IsRegistered || !Dirty()) return;
             
-            switch (modifier.ModifierType)
-            {
-                case ModifierType.Positive:
-                    _writer.WriteByte((byte)SyncTraitsOperation.RemoveConstantPositiveModifier);
-                    break;
-                case ModifierType.Negative:
-                    _writer.WriteByte((byte)SyncTraitsOperation.RemoveConstantNegativeModifier);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+            SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
+                ? SyncTraitsOperation.RemoveConstantPositiveModifier
+                : SyncTraitsOperation.RemoveConstantNegativeModifier;
             
-            _writer.WriteString(stat.StatId);
+            WriteOperation(operation, stat.StatId);
             stat.WriteRemoveModifierOperation(_writer, modifier.Value);
         }
 
         public void Write(Writer writer)
         {
             writer.WriteUInt16(Count);
-            writer.WriteBytesAndSize(_writer.GetBuffer());
+            writer.WriteBytes(_writer.GetBuffer(), 0, _writer.Position);
         }
 
         public void WriteInitializeTraitsClass(string traitsClassId)
         {
             if (!IsRegistered || !Dirty()) return; 
             
-            _writer.WriteByte((byte)SyncTraitsOperation.InitializeTraitsClass);
-            _writer.WriteString(traitsClassId);
+            WriteOperation(SyncTraitsOperation.InitializeTraitsClass, traitsClassId);
         }
 
         public void ReadAll(Reader reader, bool asServer)
@@ -146,7 +118,6 @@ namespace Stats.FishNet
             {
                 var operation = (SyncTraitsOperation)reader.ReadByte();
                 string id = reader.ReadString();
-                
                 ReadOperation(operation, reader, id, asServer);
             }
         }

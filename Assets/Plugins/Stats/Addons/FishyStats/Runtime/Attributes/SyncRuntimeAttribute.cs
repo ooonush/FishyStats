@@ -24,7 +24,6 @@ namespace Stats.FishNet
 
         IRuntimeStat<TNumber> IRuntimeAttribute<TNumber>.MaxRuntimeStat => MaxRuntimeStat;
 
-
         public TNumber Value
         {
             get

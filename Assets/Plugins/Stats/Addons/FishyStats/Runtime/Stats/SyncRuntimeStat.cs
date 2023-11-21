@@ -31,10 +31,7 @@ namespace Stats.FishNet
                 if (!SyncTraits.CanNetworkSetValuesInternal()) return;
                 SetBaseLocally(value);
                 
-                if (AsServerInvoke)
-                {
-                    Changes.WriteSetStatBaseOperation(this, value);
-                }
+                Changes.WriteSetStatBaseOperation(this, value);
             }
         }
 
@@ -101,8 +98,6 @@ namespace Stats.FishNet
 
         void ISyncRuntimeStat.RecalculateValueLocally()
         {
-            bool asServer = AsServerInvoke;
-            
             TNumber prevValue = Value;
             TNumber nextValue = CalculateValue();
             
@@ -119,9 +114,9 @@ namespace Stats.FishNet
                 
                 OnStartRecalculatingLocally?.Invoke();
                 
-                OnValueChanged?.Invoke(StatId, prevValue, Value, asServer);
+                OnValueChanged?.Invoke(StatId, prevValue, Value, AsServerInvoke);
                 
-                if (asServer && _traits.IsHost)
+                if (AsServerInvoke && _traits.IsHost)
                 {
                     void InvokeOnClientHostChange()
                     {
@@ -169,10 +164,7 @@ namespace Stats.FishNet
             if (!SyncTraits.CanNetworkSetValuesInternal()) return;
             AddModifierLocally(modifier);
             
-            if (AsServerInvoke)
-            {
-                Changes.WriteAddModifierOperation(this, modifier);
-            }
+            Changes.WriteAddModifierOperation(this, modifier);
         }
 
         public void AddModifier(PercentageModifier modifier)
@@ -180,10 +172,7 @@ namespace Stats.FishNet
             if (!SyncTraits.CanNetworkSetValuesInternal()) return;
             AddModifierLocally(modifier);
             
-            if (AsServerInvoke)
-            {
-                Changes.WriteAddModifierOperation(this, modifier);
-            }
+            Changes.WriteAddModifierOperation(this, modifier);
         }
 
         public bool RemoveModifier(ConstantModifier<TNumber> modifier)
@@ -193,7 +182,6 @@ namespace Stats.FishNet
             
             if (!isRemoved) return false;
             
-            if (!AsServerInvoke) return true;
             Changes.WriteRemoveModifierOperation(this, modifier);
             return true;
 
@@ -206,7 +194,6 @@ namespace Stats.FishNet
             
             if (!isRemoved) return false;
             
-            if (!AsServerInvoke) return true;
             Changes.WriteRemoveModifierOperation(this, modifier);
             
             return true;
@@ -288,7 +275,7 @@ namespace Stats.FishNet
             }
             
             writer.WriteUInt16((ushort)ConstantModifiers.Count);
-            foreach (var modifier in ConstantModifiers)
+            foreach (ConstantModifier<TNumber> modifier in ConstantModifiers)
             {
                 writer.WriteBoolean(modifier.ModifierType == ModifierType.Positive);
                 writer.Write(modifier.Value);
