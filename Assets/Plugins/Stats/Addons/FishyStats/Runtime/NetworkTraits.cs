@@ -99,11 +99,7 @@ namespace Stats.FishNet
             IsInitialized = true;
             
             _traitsClass = traitsClass;
-            RuntimeStats.SyncWithTraitsClass(traitsClass);
-            RuntimeAttributes.SyncWithTraitsClass(traitsClass);
-            
-            RuntimeStats.InitializeStartValues();
-            RuntimeAttributes.InitializeStartValues();
+            this.SyncWithTraitsClass(traitsClass);
         }
     }
 }

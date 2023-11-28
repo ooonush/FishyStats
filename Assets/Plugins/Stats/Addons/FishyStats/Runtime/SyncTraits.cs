@@ -114,10 +114,6 @@ namespace Stats.FishNet
             {
                 ((ISyncRuntimeAttribute)runtimeAttribute).ReadFull(reader, asServer);
             }
-            foreach (IRuntimeStat runtimeStat in RuntimeStats)
-            {
-                ((ISyncRuntimeStat)runtimeStat).RecalculateWithoutNotify();
-            }
         }
 
         private void ReadDelta(Reader reader, bool asServer)

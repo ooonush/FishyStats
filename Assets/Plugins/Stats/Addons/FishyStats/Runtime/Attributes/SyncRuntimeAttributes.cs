@@ -1,95 +1,32 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
-
-namespace Stats.FishNet
+﻿namespace Stats.FishNet
 {
-    public sealed class SyncRuntimeAttributes : IRuntimeAttributes
+    public sealed class SyncRuntimeAttributes : RuntimeAttributesBase
     {
         private readonly NetworkTraits _networkTraits;
-        private readonly Dictionary<string, ISyncRuntimeAttribute> _attributes = new();
 
-        public int Count => _attributes.Count;
-
-        internal SyncRuntimeAttributes(NetworkTraits networkTraits)
+        internal SyncRuntimeAttributes(NetworkTraits networkTraits) : base(networkTraits)
         {
             _networkTraits = networkTraits;
         }
 
-        internal void SyncWithTraitsClass(ITraitsClass traitsClass)
+        protected override IRuntimeAttribute CreateRuntimeAttribute<TNumber>(IAttribute<TNumber> stat)
         {
-            Reset();
-
-            foreach ((string attributeId, object attribute) in traitsClass.AttributeItems)
-            {
-                foreach (Type attributeInterface in attribute.GetType().GetInterfaces())
-                {
-                    if (attributeInterface.IsGenericType && attributeInterface.GetGenericTypeDefinition() == typeof(IAttribute<>))
-                    {
-                        Type genericAttributeNumberType = attributeInterface.GenericTypeArguments[0];
-                        Type runtimeAttributeType = typeof(SyncRuntimeAttribute<>).MakeGenericType(genericAttributeNumberType);
-                        
-                        const BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Default;
-                        object[] args = { _networkTraits, attribute };
-                        object genericRuntimeAttribute = Activator.CreateInstance(runtimeAttributeType, bindingFlags, null, args, null);
-                        if (_attributes.ContainsKey(attributeId))
-                        {
-                            throw new Exception($"Stat with id \"{attributeId}\" already exists");
-                        }
-                        
-                        _attributes.Add(attributeId, (ISyncRuntimeAttribute)genericRuntimeAttribute);
-                    }
-                }
-            }
+            return new SyncRuntimeAttribute<TNumber>(_networkTraits, stat);
         }
 
-        internal void InitializeStartValues()
+        public new SyncRuntimeAttribute<TNumber> Get<TNumber>(AttributeId<TNumber> attributeId) where TNumber : IStatNumber<TNumber>
         {
-            foreach (ISyncRuntimeAttribute runtimeAttribute in _attributes.Values)
-            {
-                runtimeAttribute.InitializeStartValues();
-            }
+            return (SyncRuntimeAttribute<TNumber>)base.Get(attributeId);
         }
 
-        public SyncRuntimeAttribute<TNumber> Get<TNumber>(AttributeId<TNumber> attributeId) where TNumber : IStatNumber<TNumber>
+        internal new ISyncRuntimeAttribute Get(AttributeId attributeId)
         {
-            try
-            {
-                return (SyncRuntimeAttribute<TNumber>)_attributes[attributeId];
-            }
-            catch (Exception exception)
-            {
-                throw new ArgumentException("AttributeType Id not found in RuntimeAttributes", nameof(attributeId),
-                    exception);
-            }
+            return (ISyncRuntimeAttribute)base.Get(attributeId);
         }
 
-        IRuntimeAttribute<TNumber> IRuntimeAttributes.Get<TNumber>(AttributeId<TNumber> attributeId) => Get(attributeId);
-
-
-        internal ISyncRuntimeAttribute Get(string attributeId)
+        internal void Reset()
         {
-            try
-            {
-                return _attributes[attributeId];
-            }
-            catch (Exception exception)
-            {
-                throw new ArgumentException("AttributeType Id not found in RuntimeAttributes", nameof(attributeId),
-                    exception);
-            }
+            Clear();
         }
-
-        public bool Contains<TNumber>(AttributeId<TNumber> attributeId)
-            where TNumber : IStatNumber<TNumber>
-        {
-            return _attributes.ContainsKey(attributeId);
-        }
-
-        internal void Reset() => _attributes.Clear();
-
-        public IEnumerator<IRuntimeAttribute> GetEnumerator() => _attributes.Values.GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

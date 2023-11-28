@@ -4,9 +4,6 @@ namespace Stats.FishNet
 {
     internal interface ISyncRuntimeStat : IRuntimeStat
     {
-        void InitializeStartValues();
-        void RecalculateValueLocally();
-        bool RecalculateWithoutNotify();
         void WriteFull(Writer writer);
         void ReadFull(Reader reader, bool asServer);
         void ReadAddConstantModifier(Reader reader, ModifierType modifierType, bool asServer);
