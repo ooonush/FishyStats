@@ -27,7 +27,7 @@ namespace Stats.FishNet
             _traits = traits;
         }
 
-        public bool UpdateTraitsClass(TraitsClassAsset traitsClass)
+        public bool UpdateTraitsClass(ITraitsClass traitsClass)
         {
             if (!CanNetworkSetValues()) return false;
             

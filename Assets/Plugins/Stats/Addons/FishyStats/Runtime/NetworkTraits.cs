@@ -8,13 +8,13 @@ namespace Stats.FishNet
     [AddComponentMenu("Stats/NetworkTraits")]
     public sealed class NetworkTraits : NetworkBehaviour, ITraits
     {
-        [SerializeField] private TraitsClassAsset _traitsClass;
+        [SerializeField] private TraitsClassItem _traitsClass;
         [SerializeField] private TraitsClassRegistry _traitsClassRegistry;
 
         [SyncObject] internal readonly SyncTraits SyncTraits = new();
         public bool IsInitialized { get; private set; }
 
-        internal TraitsClassAsset TraitsClass => _traitsClass;
+        internal ITraitsClass TraitsClass => _traitsClass.Value;
 
         public SyncRuntimeStats RuntimeStats { get; private set; }
         public SyncRuntimeAttributes RuntimeAttributes { get; private set; }
@@ -31,36 +31,36 @@ namespace Stats.FishNet
             
             SyncTraits.Initialize(this);
             
-            if (!_traitsClass) return;
-            InitializeLocally(_traitsClass);
+            if (_traitsClass.Value == null) return;
+            InitializeInternal(_traitsClass.Value);
         }
 
         public override void OnStartNetwork()
         {
             const string warning = "Traits not initialized. Please set TraitsClass in the inspector or call Initialize()";
-            if (!_traitsClass)
+            if (_traitsClass.Value == null)
             {
                 NetworkManager.LogWarning(warning);
             }
         }
 
-        public void Initialize(TraitsClassAsset traitsClass)
+        public void Initialize(ITraitsClass traitsClass)
         {
-            if (!traitsClass)
+            if (traitsClass == null)
             {
                 throw new ArgumentNullException(nameof(traitsClass), "TraitsClass cannot be null.");
             }
-            
+
             if (IsInitialized)
             {
                 throw new InvalidOperationException("NetworkTraits is already initialized.");
             }
-            
+
             // if (!IsOffline)
             // {
             //     throw new InvalidOperationException("NetworkTraits cannot be initialized when network is started.");
             // }
-            
+
             if (SyncTraits.UpdateTraitsClass(traitsClass))
             {
                 InitializeLocally(traitsClass);
@@ -82,23 +82,28 @@ namespace Stats.FishNet
 
         internal void InitializeLocally(string traitsClassId)
         {
-            if (!_traitsClassRegistry.TryGetByGuid(traitsClassId, out TraitsClassAsset traitsClass))
+            if (!_traitsClassRegistry.TryGetByGuid(traitsClassId, out ITraitsClass traitsClass))
             {
                 throw new ArgumentException("TraitsClass Id not found in TraitsClassRegistry", nameof(traitsClassId));
             }
-            
+
             InitializeLocally(traitsClass);
         }
 
-        private void InitializeLocally(TraitsClassAsset traitsClass)
+        private void InitializeLocally(ITraitsClass traitsClass)
         {
             if (IsInitialized)
             {
                 throw new InvalidOperationException("NetworkTraits is already initialized");
             }
+
+            _traitsClass = new TraitsClassItem(traitsClass);
+            InitializeInternal(traitsClass);
+        }
+
+        private void InitializeInternal(ITraitsClass traitsClass)
+        {
             IsInitialized = true;
-            
-            _traitsClass = traitsClass;
             this.SyncWithTraitsClass(traitsClass);
         }
     }
