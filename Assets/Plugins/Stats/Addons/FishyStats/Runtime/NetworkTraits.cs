@@ -67,6 +67,18 @@ namespace Stats.FishNet
             }
         }
 
+        public void Initialize(string traitsClassId)
+        {
+            if (_traitsClassRegistry.TryGetByGuid(traitsClassId, out ITraitsClass traitsClass))
+            {
+                Initialize(traitsClass);
+            }
+            else
+            {
+                throw new ArgumentException("TraitsClass Id not found in TraitsClassRegistry", nameof(traitsClassId));
+            }
+        }
+
         private void Update()
         {
             if (IsServer)
