@@ -8,8 +8,9 @@ namespace Stats.FishNet
     [AddComponentMenu("Stats/NetworkTraits")]
     public sealed class NetworkTraits : NetworkBehaviour, ITraits
     {
+        public TraitsClassRegistry TraitsClassRegistry;
+
         [SerializeField] private TraitsClassItem _traitsClass;
-        [SerializeField] private TraitsClassRegistry _traitsClassRegistry;
 
         [SyncObject] internal readonly SyncTraits SyncTraits = new();
         public bool IsInitialized { get; private set; }
@@ -69,7 +70,7 @@ namespace Stats.FishNet
 
         public void Initialize(string traitsClassId)
         {
-            if (_traitsClassRegistry.TryGetByGuid(traitsClassId, out ITraitsClass traitsClass))
+            if (TraitsClassRegistry.TryGetByGuid(traitsClassId, out ITraitsClass traitsClass))
             {
                 Initialize(traitsClass);
             }
@@ -94,7 +95,7 @@ namespace Stats.FishNet
 
         internal void InitializeLocally(string traitsClassId)
         {
-            if (!_traitsClassRegistry.TryGetByGuid(traitsClassId, out ITraitsClass traitsClass))
+            if (!TraitsClassRegistry.TryGetByGuid(traitsClassId, out ITraitsClass traitsClass))
             {
                 throw new ArgumentException("TraitsClass Id not found in TraitsClassRegistry", nameof(traitsClassId));
             }
