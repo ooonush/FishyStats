@@ -13,8 +13,10 @@ namespace Stats.FishNet
         [SerializeField] private TraitsClassItem _traitsClass;
 
         [SyncObject] internal readonly SyncTraits SyncTraits = new();
-        public bool IsInitialized { get; private set; }
+        internal bool IsInitialized { get; private set; }
+        public event Action OnInitialized;
 
+        private bool _onStartNetworkCalled;
         internal ITraitsClass TraitsClass => _traitsClass.Value;
 
         public SyncRuntimeStats RuntimeStats { get; private set; }
@@ -38,10 +40,15 @@ namespace Stats.FishNet
 
         public override void OnStartNetwork()
         {
+            _onStartNetworkCalled = true;
             const string warning = "Traits not initialized. Please set TraitsClass in the inspector or call Initialize()";
             if (_traitsClass.Value == null)
             {
                 NetworkManager.LogWarning(warning);
+            }
+            else
+            {
+                OnInitialized?.Invoke();
             }
         }
 
@@ -118,6 +125,10 @@ namespace Stats.FishNet
         {
             IsInitialized = true;
             this.SyncWithTraitsClass(traitsClass);
+            if (_onStartNetworkCalled)
+            {
+                OnInitialized?.Invoke();
+            }
         }
     }
 }
