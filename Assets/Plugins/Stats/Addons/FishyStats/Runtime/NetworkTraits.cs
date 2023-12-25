@@ -13,10 +13,9 @@ namespace Stats.FishNet
         [SerializeField] private TraitsClassItem _traitsClass;
 
         [SyncObject] internal readonly SyncTraits SyncTraits = new();
-        internal bool IsInitialized { get; private set; }
+        public bool IsInitialized => _isSyncedWithTraitsClass && !IsOffline;
         public event Action OnInitialized;
-
-        private bool _onStartNetworkCalled;
+        private bool _isSyncedWithTraitsClass;
         internal ITraitsClass TraitsClass => _traitsClass.Value;
 
         public SyncRuntimeStats RuntimeStats { get; private set; }
@@ -34,15 +33,14 @@ namespace Stats.FishNet
             
             SyncTraits.Initialize(this);
             
-            if (_traitsClass.Value == null) return;
-            InitializeInternal(_traitsClass.Value);
+            if (TraitsClass == null) return;
+            InitializeInternal(TraitsClass);
         }
 
         public override void OnStartNetwork()
         {
-            _onStartNetworkCalled = true;
             const string warning = "Traits not initialized. Please set TraitsClass in the inspector or call Initialize()";
-            if (_traitsClass.Value == null)
+            if (TraitsClass == null)
             {
                 NetworkManager.LogWarning(warning);
             }
@@ -59,7 +57,7 @@ namespace Stats.FishNet
                 throw new ArgumentNullException(nameof(traitsClass), "TraitsClass cannot be null.");
             }
 
-            if (IsInitialized)
+            if (_isSyncedWithTraitsClass)
             {
                 throw new InvalidOperationException("NetworkTraits is already initialized.");
             }
@@ -112,7 +110,7 @@ namespace Stats.FishNet
 
         private void InitializeLocally(ITraitsClass traitsClass)
         {
-            if (IsInitialized)
+            if (_isSyncedWithTraitsClass)
             {
                 throw new InvalidOperationException("NetworkTraits is already initialized");
             }
@@ -123,12 +121,8 @@ namespace Stats.FishNet
 
         private void InitializeInternal(ITraitsClass traitsClass)
         {
-            IsInitialized = true;
             this.SyncWithTraitsClass(traitsClass);
-            if (_onStartNetworkCalled)
-            {
-                OnInitialized?.Invoke();
-            }
+            _isSyncedWithTraitsClass = true;
         }
     }
 }
