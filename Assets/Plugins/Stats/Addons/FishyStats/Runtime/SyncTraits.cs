@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using FishNet.Managing;
 using FishNet.Object.Synchronizing;
 using FishNet.Object.Synchronizing.Internal;
 using FishNet.Serializing;
@@ -7,7 +8,17 @@ using FishNet.Utility.Extension;
 
 namespace Stats.FishNet
 {
-    internal sealed class SyncTraits : SyncBase, ICustomSync
+    internal interface ISyncTraits
+    {
+        SyncRuntimeStats RuntimeStats { get; }
+        SyncRuntimeAttributes RuntimeAttributes { get; }
+
+        bool IsInitialized { get; }
+        void InitializeTraitsClass(string traitsClassId, bool asServer);
+        bool Dirty();
+    }
+
+    internal sealed class SyncTraits : SyncBase, ICustomSync, ISyncTraits
     {
         private readonly List<Action> _clientHostChanges = new();
         public readonly TraitsSyncChanges Changes;
@@ -41,7 +52,7 @@ namespace Stats.FishNet
             _clientHostChanges.Add(onChangeAction);
         }
 
-        public override void WriteDelta(PooledWriter writer, bool resetSyncTick = true)
+        protected override void WriteDelta(PooledWriter writer, bool resetSyncTick = true)
         {
             base.WriteDelta(writer, resetSyncTick);
             
@@ -51,7 +62,7 @@ namespace Stats.FishNet
             Changes.Reset();
         }
 
-        public override void WriteFull(PooledWriter writer)
+        protected override void WriteFull(PooledWriter writer)
         {
             WriteHeader(writer, false);
             
@@ -69,7 +80,7 @@ namespace Stats.FishNet
             }
         }
 
-        public override void Read(PooledReader reader, bool asServer)
+        protected override void Read(PooledReader reader, bool asServer)
         {
             bool writeFull = reader.ReadBoolean();
             
@@ -85,7 +96,7 @@ namespace Stats.FishNet
 
         public void InitializeTraitsClass(string traitsClassId, bool asServer)
         {
-            if (NetworkManager.DoubleLogic(asServer)) return;
+            if (_traits.DoubleLogic(asServer)) return;
             
             _traits.InitializeLocally(traitsClassId);
         }
@@ -98,7 +109,7 @@ namespace Stats.FishNet
             {
                 if (_traits.TraitsClass.Id != traitsClassId)
                 {
-                    NetworkManager.LogError("NetworkTraits already initialized with a different TraitsClass.");
+                    _traits.NetworkManager.LogError("NetworkTraits already initialized with a different TraitsClass.");
                 }
             }
             else
@@ -118,7 +129,7 @@ namespace Stats.FishNet
 
         private void ReadDelta(Reader reader, bool asServer)
         {
-            if (NetworkManager.DoubleLogic(asServer))
+            if (_traits.DoubleLogic(asServer))
             {
                 foreach (Action action in _clientHostChanges)
                 {
@@ -133,7 +144,7 @@ namespace Stats.FishNet
 
         public object GetSerializedType() => null;
 
-        public override void ResetState()
+        protected override void ResetState()
         {
             base.ResetState();
             

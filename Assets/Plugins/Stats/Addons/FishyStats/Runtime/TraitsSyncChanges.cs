@@ -8,10 +8,10 @@ namespace Stats.FishNet
         private readonly Writer _writer = new Writer();
         private ushort Count { get; set; }
 
-        private readonly SyncTraits _syncTraits;
-        private bool IsRegistered => _syncTraits.IsRegistered;
+        private readonly ISyncTraits _syncTraits;
+        private bool IsInitialized => _syncTraits.IsInitialized;
 
-        public TraitsSyncChanges(SyncTraits syncTraits)
+        public TraitsSyncChanges(ISyncTraits syncTraits)
         {
             _syncTraits = syncTraits;
         }
@@ -21,7 +21,7 @@ namespace Stats.FishNet
         public void WriteSetAttributeValueOperation<TNumber>(SyncRuntimeAttribute<TNumber> attribute, TNumber value)
             where TNumber : IStatNumber<TNumber>
         {
-            if (!IsRegistered || !Dirty()) return;
+            if (!IsInitialized || !Dirty()) return;
             
             WriteOperation(SyncTraitsOperation.SetAttributeValue, attribute.AttributeId);
             attribute.WriteSetValueOperation(_writer, value);
@@ -37,7 +37,7 @@ namespace Stats.FishNet
         public void WriteSetStatBaseOperation<TNumber>(SyncRuntimeStat<TNumber> stat, TNumber value)
             where TNumber : IStatNumber<TNumber>
         {
-            if (!IsRegistered || !Dirty()) return;
+            if (!IsInitialized || !Dirty()) return;
             
             WriteOperation(SyncTraitsOperation.SetStatBase, stat.StatId);
             stat.WriteSetStatBaseOperation(_writer, value);
@@ -46,7 +46,7 @@ namespace Stats.FishNet
         public void WriteAddModifierOperation<TNumber>(SyncRuntimeStat<TNumber> stat, PercentageModifier modifier)
             where TNumber : IStatNumber<TNumber>
         {
-            if (!IsRegistered || !Dirty()) return;
+            if (!IsInitialized || !Dirty()) return;
             
             SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
                 ? SyncTraitsOperation.AddPercentagePositiveModifier
@@ -59,7 +59,7 @@ namespace Stats.FishNet
         public void WriteRemoveModifierOperation<TNumber>(SyncRuntimeStat<TNumber> stat, PercentageModifier modifier)
             where TNumber : IStatNumber<TNumber>
         {
-            if (!IsRegistered || !Dirty()) return;
+            if (!IsInitialized || !Dirty()) return;
             
             SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
                 ? SyncTraitsOperation.RemovePercentagePositiveModifier
@@ -73,7 +73,7 @@ namespace Stats.FishNet
             ConstantModifier<TNumber> modifier)
             where TNumber : IStatNumber<TNumber>
         {
-            if (!IsRegistered || !Dirty()) return;
+            if (!IsInitialized || !Dirty()) return;
             
             SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
                 ? SyncTraitsOperation.AddConstantPositiveModifier
@@ -87,7 +87,7 @@ namespace Stats.FishNet
             ConstantModifier<TNumber> modifier)
             where TNumber : IStatNumber<TNumber>
         {
-            if (!IsRegistered || !Dirty()) return;
+            if (!IsInitialized || !Dirty()) return;
             
             SyncTraitsOperation operation = modifier.ModifierType == ModifierType.Positive
                 ? SyncTraitsOperation.RemoveConstantPositiveModifier
@@ -105,7 +105,7 @@ namespace Stats.FishNet
 
         public void WriteInitializeTraitsClass(string traitsClassId)
         {
-            if (!IsRegistered || !Dirty()) return; 
+            if (!IsInitialized || !Dirty()) return; 
             
             WriteOperation(SyncTraitsOperation.InitializeTraitsClass, traitsClassId);
         }

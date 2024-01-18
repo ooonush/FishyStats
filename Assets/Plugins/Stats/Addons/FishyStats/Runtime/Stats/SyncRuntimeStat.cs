@@ -10,7 +10,7 @@ namespace Stats.FishNet
 
         private SyncTraits SyncTraits => _traits.SyncTraits;
 
-        private bool AsServerInvoke => !SyncTraits.IsNetworkInitialized || SyncTraits.NetworkBehaviour.IsServer;
+        private bool AsServerInvoke => !SyncTraits.IsNetworkInitialized || _traits.IsServerInitialized;
 
         private TraitsSyncChanges Changes => SyncTraits.Changes;
 
@@ -215,6 +215,6 @@ namespace Stats.FishNet
 
         #endregion
 
-        private bool DoubleLogic(bool asServer) => SyncTraits.NetworkManager.DoubleLogic(asServer);
+        private bool DoubleLogic(bool asServer) => _traits.DoubleLogic(asServer);
     }
 }

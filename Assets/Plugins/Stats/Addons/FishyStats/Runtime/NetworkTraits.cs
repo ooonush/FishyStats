@@ -1,4 +1,5 @@
 ﻿using System;
+using FishNet.Managing;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using UnityEngine;
@@ -12,7 +13,7 @@ namespace Stats.FishNet
 
         [SerializeField] private TraitsClassItem _traitsClass;
 
-        [SyncObject] internal readonly SyncTraits SyncTraits = new();
+        internal readonly SyncTraits SyncTraits = new();
         public bool IsInitialized => _isSyncedWithTraitsClass && !IsOffline;
         public event Action OnInitialized;
         private bool _isSyncedWithTraitsClass;

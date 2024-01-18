@@ -35,7 +35,7 @@ namespace Stats.FishNet
         private void OnChanged(AttributeId<TNumber> attributeId, TNumber prevValue, TNumber nextValue)
         {
             OnValueChanged?.Invoke(AttributeId, prevValue, nextValue, AsServerInvoke);
-            if (AsServerInvoke && _traits.IsHost)
+            if (AsServerInvoke && _traits.IsHostInitialized)
             {
                 SyncTraits.AddClientHostChange(InvokeOnClientHostChange);
             }
@@ -77,8 +77,8 @@ namespace Stats.FishNet
             base.Value = value;
         }
 
-        private bool DoubleLogic(bool asServer) => SyncTraits.NetworkManager.DoubleLogic(asServer);
+        private bool DoubleLogic(bool asServer) => _traits.DoubleLogic(asServer);
 
-        private bool AsServerInvoke => !SyncTraits.IsNetworkInitialized || SyncTraits.NetworkBehaviour.IsServer;
+        private bool AsServerInvoke => !SyncTraits.IsNetworkInitialized || _traits.IsServerInitialized;
     }
 }
